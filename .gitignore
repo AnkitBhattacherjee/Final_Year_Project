@@ -1,0 +1,19 @@
+# Python bytecode & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+ENV/
+env/
+
+# Uploaded datasets & local configs
+uploads/*
+!.gitkeep
+.env
+
+# System files
+.DS_Store
+Thumbs.db
+
+# VS Code directory
+.vscode/

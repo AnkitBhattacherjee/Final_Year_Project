@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Data Analyst Agent</title>
+    <!-- Google Fonts: Inter + Noto Sans Bengali + Noto Sans Devanagari (Hindi) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-icon">📊</div>
+                <div class="brand-details">
+                    <h2 class="brand-name">AI Data Analyst</h2>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-view="dashboard-view">
+                    <span class="icon">📈</span> Dashboard
+                </button>
+                <button class="nav-btn" data-view="ai-analyst-view">
+                    <span class="icon">💬</span> AI Analyst
+                </button>
+                <button class="nav-btn" data-view="insights-view">
+                    <span class="icon">💡</span> Insights
+                </button>
+                <button class="nav-btn" data-view="visualizations-view">
+                    <span class="icon">📊</span> Visualizations
+                </button>
+                <button class="nav-btn" data-view="profile-view">
+                    <span class="icon">📄</span> Dataset Profile
+                </button>
+                <button class="nav-btn" data-view="quality-view">
+                    <span class="icon">🛡️</span> Data Quality
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot green"></span> Engine Status: Active
+                </div>
+                <div class="meta-info">
+                    <span>Version 1.0.0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace View Container -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <div>
+                    <h1 class="header-title">AI Data Analyst Agent</h1>
+                    <p class="header-subtitle">Turn your data into clear insights with AI.</p>
+                </div>
+                <div id="active-file-badge" class="file-badge hidden">
+                    <span class="icon">📄</span> <span id="badge-filename">dataset.csv</span>
+                </div>
+            </header>
+
+            <!-- Loading Spinner Container -->
+            <div id="global-loader" class="loader-overlay hidden">
+                <div class="spinner"></div>
+                <p id="loader-text">Analyzing dataset with AI engine...</p>
+            </div>
+
+            <!-- VIEW 1: DASHBOARD -->
+            <section id="dashboard-view" class="view-section active">
+                <!-- Upload Drop Zone Card -->
+                <div class="card upload-card" id="upload-card">
+                    <div class="upload-icon">📁</div>
+                    <h3>Upload your dataset</h3>
+                    <p class="upload-hint">Support for CSV, XLSX, or XLS files up to 100MB</p>
+                    <form id="upload-form" class="upload-form">
+                        <input type="file" id="file-input" accept=".csv, .xlsx, .xls" class="hidden-input">
+                        <label for="file-input" class="btn btn-secondary">Choose File</label>
+                        <button type="submit" class="btn btn-primary">Analyze Dataset</button>
+                    </form>
+                    <p id="upload-filename-display" class="file-selected-text"></p>
+                </div>
+
+                <!-- Empty State Indicator -->
+                <div id="empty-dashboard-state" class="empty-state">
+                    <div class="empty-icon">📊</div>
+                    <h3>No Dataset Uploaded Yet</h3>
+                    <p>Upload a file using the form above to view statistics, charts, quality audits, and AI chat capabilities.</p>
+                </div>
+
+                <!-- Active Dashboard Metrics Content (Hidden initially) -->
+                <div id="dashboard-content" class="dashboard-content hidden">
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <span class="metric-label">Total Rows</span>
+                            <span class="metric-value" id="m-rows">0</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Total Columns</span>
+                            <span class="metric-value" id="m-cols">0</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Numeric Columns</span>
+                            <span class="metric-value" id="m-numeric">0</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Missing Cells</span>
+                            <span class="metric-value" id="m-missing">0</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Duplicate Rows</span>
+                            <span class="metric-value" id="m-duplicates">0</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Dataset Preview</h3>
+                            <span class="table-hint">First 15 records</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table" id="preview-table">
+                                <thead></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 2: AI ANALYST CHAT -->
+            <section id="ai-analyst-view" class="view-section">
+                <div class="card chat-container">
+                    <div class="chat-header">
+                        <h3>💬 AI Data Analyst Assistant</h3>
+                        <button id="clear-chat-btn" class="btn btn-sm btn-outline">Clear History</button>
+                    </div>
+
+                    <!-- Dynamic Suggestions Bar -->
+                    <div id="suggestions-box" class="suggestions-box">
+                        <span class="suggestions-title">Suggested Prompts:</span>
+                        <div id="suggestions-container" class="suggestions-chips"></div>
+                    </div>
+
+                    <!-- Chat Logs Box -->
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="message assistant-message">
+                            <div class="avatar">🤖</div>
+                            <div class="message-content">
+                                <p>Hello! I am your <strong>AI Data Analyst Agent</strong>. Upload your dataset and ask me questions such as <em>"Which product has the highest sales?"</em> or <em>"Are there missing values?"</em>.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sticky Bottom Input Form -->
+                    <div id="voice-recording-bar" class="voice-recording-bar hidden">
+                        <span class="voice-pulse-dot"></span>
+                        <span class="voice-recording-label">Recording… <span id="voice-timer">0s</span></span>
+                        <button type="button" id="stop-recording-btn" class="btn btn-sm btn-danger-outline">Stop & Transcribe</button>
+                    </div>
+                    <form id="chat-form" class="chat-input-form">
+                        <input type="text" id="chat-input" placeholder="Ask in English, বাংলায়, या हिन्दी में..." required>
+                        <button type="button" id="mic-btn" class="btn btn-mic" title="Record your question (supports English, Bengali, Hindi)">
+                            <img id="mic-icon" src="{{ url_for('static', filename='img/microphone-icon.png') }}" alt="Microphone" class="mic-img">
+                        </button>
+                        <button type="submit" class="btn btn-primary">Send</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- VIEW 3: INSIGHTS -->
+            <section id="insights-view" class="view-section">
+                <div class="section-action-header">
+                    <h2>💡 Automated AI Insights</h2>
+                    <button id="generate-insights-btn" class="btn btn-primary">Generate AI Insights</button>
+                </div>
+                <div id="insights-container" class="insights-grid">
+                    <div class="empty-state">
+                        <p>Click "Generate AI Insights" to scan patterns and correlations.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 4: VISUALIZATIONS -->
+            <section id="visualizations-view" class="view-section">
+                <div class="card">
+                    <h3>📊 Custom Visualization Studio</h3>
+                    <div class="controls-grid">
+                        <div class="control-group">
+                            <label for="chart-type-select">Chart Type</label>
+                            <select id="chart-type-select">
+                                <option value="bar">Bar Chart</option>
+                                <option value="line">Line Chart</option>
+                                <option value="pie">Pie Chart</option>
+                                <option value="scatter">Scatter Plot</option>
+                                <option value="histogram">Histogram</option>
+                                <option value="box">Box Plot</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label for="x-axis-select">X Axis Column</label>
+                            <select id="x-axis-select"></select>
+                        </div>
+                        <div class="control-group">
+                            <label for="y-axis-select">Y Axis Column (Numeric)</label>
+                            <select id="y-axis-select"></select>
+                        </div>
+                        <div class="control-group btn-align">
+                            <button id="render-chart-btn" class="btn btn-primary">Generate Chart</button>
+                        </div>
+                    </div>
+
+                    <div id="plotly-chart-container" class="chart-box">
+                        <div class="empty-state">
+                            <p>Select axes and chart type above, then click Generate Chart.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 5: DATASET PROFILE -->
+            <section id="profile-view" class="view-section">
+                <div class="card">
+                    <h3>📄 Column Statistical Summary Profile</h3>
+                    <div class="table-responsive">
+                        <table class="data-table" id="profile-table">
+                            <thead>
+                                <tr>
+                                    <th>Column</th>
+                                    <th>Type</th>
+                                    <th>Unique</th>
+                                    <th>Missing</th>
+                                    <th>Missing %</th>
+                                    <th>Mean</th>
+                                    <th>Median</th>
+                                    <th>Min</th>
+                                    <th>Max</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 6: DATA QUALITY -->
+            <section id="quality-view" class="view-section">
+                <div class="card">
+                    <h3>🛡️ Data Quality & Health Score</h3>
+                    <div id="quality-dashboard-content">
+                        <div class="empty-state">
+                            <p>Upload a dataset to generate a quality report.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Page JavaScript -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
