@@ -86,6 +86,9 @@ class DataVisualizer:
 
     @classmethod
     def create_chart(cls, df, chart_type, x_col, y_col=None, title=None, **kwargs):
+        # Visualization is intentionally a pure rendering layer.
+        # It must receive already-computed analysis results and never infer,
+        # aggregate, or recalculate business metrics from the raw dataset.
         if df is None or (isinstance(df, pd.DataFrame) and df.empty):
             return {"error": "No data available to chart."}
 
@@ -399,3 +402,21 @@ def _build_scatter_trend(df, x_col, y_col, color_col, title):
         pass
     _apply_layout(fig, title)
     return fig
+
+
+def create_analysis_chart(df, chart_type, x_col, y_col=None, title=None, **kwargs):
+    """Render an already-computed agent result without recalculating anything.
+
+    The dataframe passed here must contain the exact result produced by agent.py.
+    This function performs only schema validation and chart rendering.
+    """
+    if df is None or df.empty:
+        return None
+    if x_col not in df.columns:
+        raise ValueError(f"Analysis result x-axis field '{x_col}' is not present.")
+    if y_col is not None and y_col not in df.columns:
+        raise ValueError(f"Analysis result y-axis field '{y_col}' is not present.")
+    return DataVisualizer.create_chart(
+        df.copy(), chart_type=chart_type, x_col=x_col, y_col=y_col,
+        title=title, **kwargs
+    )
