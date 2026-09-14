@@ -98,6 +98,14 @@ body {
     text-align: left;
 }
 
+.nav-btn .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    font-size: 1rem;
+}
+
 .nav-btn:hover {
     background-color: var(--accent-light);
     color: var(--primary-blue);

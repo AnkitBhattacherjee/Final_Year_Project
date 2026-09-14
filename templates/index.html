@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +8,23 @@
     <!-- Google Fonts: Inter + Noto Sans Bengali + Noto Sans Devanagari (Hindi) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <!-- Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
+
 <body>
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="brand-icon">📊</div>
+                <div class="brand-icon"><i class="fa-solid fa-chart-line"></i></div>
                 <div class="brand-details">
                     <h2 class="brand-name">AI Data Analyst</h2>
                 </div>
@@ -26,22 +32,22 @@
 
             <nav class="sidebar-nav">
                 <button class="nav-btn active" data-view="dashboard-view">
-                    <span class="icon">📈</span> Dashboard
+                    <span class="icon"><i class="fa-solid fa-chart-line"></i></span> Dashboard
                 </button>
                 <button class="nav-btn" data-view="ai-analyst-view">
-                    <span class="icon">💬</span> AI Analyst
+                    <span class="icon"><i class="fa-solid fa-comment"></i></span> AI Analyst
                 </button>
                 <button class="nav-btn" data-view="insights-view">
-                    <span class="icon">💡</span> Insights
+                    <span class="icon"><i class="fa-solid fa-lightbulb"></i></span> Insights
                 </button>
                 <button class="nav-btn" data-view="visualizations-view">
-                    <span class="icon">📊</span> Visualizations
+                    <span class="icon"><i class="fa-solid fa-chart-bar"></i></span> Visualizations
                 </button>
                 <button class="nav-btn" data-view="profile-view">
-                    <span class="icon">📄</span> Dataset Profile
+                    <span class="icon"><i class="fa-solid fa-database"></i></span> Dataset Profile
                 </button>
                 <button class="nav-btn" data-view="quality-view">
-                    <span class="icon">🛡️</span> Data Quality
+                    <span class="icon"><i class="fa-solid fa-shield-alt"></i></span> Data Quality
                 </button>
             </nav>
 
@@ -78,7 +84,7 @@
             <section id="dashboard-view" class="view-section active">
                 <!-- Upload Drop Zone Card -->
                 <div class="card upload-card" id="upload-card">
-                    <div class="upload-icon">📁</div>
+                    <div class="upload-icon"><i class="fa-solid fa-upload"></i></div>
                     <h3>Upload your dataset</h3>
                     <p class="upload-hint">Support for CSV, XLSX, or XLS files up to 100MB</p>
                     <form id="upload-form" class="upload-form">
@@ -91,9 +97,10 @@
 
                 <!-- Empty State Indicator -->
                 <div id="empty-dashboard-state" class="empty-state">
-                    <div class="empty-icon">📊</div>
+                    <div class="empty-icon"><i class="fa-solid fa-table"></i></div>
                     <h3>No Dataset Uploaded Yet</h3>
-                    <p>Upload a file using the form above to view statistics, charts, quality audits, and AI chat capabilities.</p>
+                    <p>Upload a file using the form above to view statistics, charts, quality audits, and AI chat
+                        capabilities.</p>
                 </div>
 
                 <!-- Active Dashboard Metrics Content (Hidden initially) -->
@@ -140,7 +147,7 @@
             <section id="ai-analyst-view" class="view-section">
                 <div class="card chat-container">
                     <div class="chat-header">
-                        <h3>💬 AI Data Analyst Assistant</h3>
+                        <h3><i class="fa-solid fa-robot"></i> AI Data Analyst Assistant</h3>
                         <button id="clear-chat-btn" class="btn btn-sm btn-outline">Clear History</button>
                     </div>
 
@@ -153,9 +160,11 @@
                     <!-- Chat Logs Box -->
                     <div id="chat-messages" class="chat-messages">
                         <div class="message assistant-message">
-                            <div class="avatar">🤖</div>
+                            <div class="avatar"><i class="fa-solid fa-robot"></i></div>
                             <div class="message-content">
-                                <p>Hello! I am your <strong>AI Data Analyst Agent</strong>. Upload your dataset and ask me questions such as <em>"Which product has the highest sales?"</em> or <em>"Are there missing values?"</em>.</p>
+                                <p>Hello! I am your <strong>AI Data Analyst Agent</strong>. Upload your dataset and ask
+                                    me questions such as <em>"Which product has the highest sales?"</em> or <em>"Are
+                                        there missing values?"</em>.</p>
                             </div>
                         </div>
                     </div>
@@ -164,12 +173,16 @@
                     <div id="voice-recording-bar" class="voice-recording-bar hidden">
                         <span class="voice-pulse-dot"></span>
                         <span class="voice-recording-label">Recording… <span id="voice-timer">0s</span></span>
-                        <button type="button" id="stop-recording-btn" class="btn btn-sm btn-danger-outline">Stop & Transcribe</button>
+                        <button type="button" id="stop-recording-btn" class="btn btn-sm btn-danger-outline">Stop &
+                            Transcribe</button>
                     </div>
                     <form id="chat-form" class="chat-input-form">
-                        <input type="text" id="chat-input" placeholder="Ask in English, বাংলায়, या हिन्दी में..." required>
-                        <button type="button" id="mic-btn" class="btn btn-mic" title="Record your question (supports English, Bengali, Hindi)">
-                            <img id="mic-icon" src="{{ url_for('static', filename='img/microphone-icon.png') }}" alt="Microphone" class="mic-img">
+                        <input type="text" id="chat-input" placeholder="Ask in English, বাংলায়, या हिन्दी में..."
+                            required>
+                        <button type="button" id="mic-btn" class="btn btn-mic"
+                            title="Record your question (supports English, Bengali, Hindi)">
+                            <img id="mic-icon" src="{{ url_for('static', filename='img/microphone-icon.png') }}"
+                                alt="Microphone" class="mic-img">
                         </button>
                         <button type="submit" class="btn btn-primary">Send</button>
                     </form>
@@ -179,7 +192,7 @@
             <!-- VIEW 3: INSIGHTS -->
             <section id="insights-view" class="view-section">
                 <div class="section-action-header">
-                    <h2>💡 Automated AI Insights</h2>
+                    <h2><i class="fa-solid fa-lightbulb"></i> Automated AI Insights</h2>
                     <button id="generate-insights-btn" class="btn btn-primary">Generate AI Insights</button>
                 </div>
                 <div id="insights-container" class="insights-grid">
@@ -192,7 +205,7 @@
             <!-- VIEW 4: VISUALIZATIONS -->
             <section id="visualizations-view" class="view-section">
                 <div class="card">
-                    <h3>📊 Custom Visualization Studio</h3>
+                    <h3><i class="fa-solid fa-chart-bar"></i> Custom Visualization Studio</h3>
                     <div class="controls-grid">
                         <div class="control-group">
                             <label for="chart-type-select">Chart Type</label>
@@ -229,7 +242,7 @@
             <!-- VIEW 5: DATASET PROFILE -->
             <section id="profile-view" class="view-section">
                 <div class="card">
-                    <h3>📄 Column Statistical Summary Profile</h3>
+                    <h3><i class="fa-solid fa-database"></i> Column Statistical Summary Profile</h3>
                     <div class="table-responsive">
                         <table class="data-table" id="profile-table">
                             <thead>
@@ -254,7 +267,7 @@
             <!-- VIEW 6: DATA QUALITY -->
             <section id="quality-view" class="view-section">
                 <div class="card">
-                    <h3>🛡️ Data Quality & Health Score</h3>
+                    <h3><i class="fa-solid fa-shield-alt"></i> Data Quality & Health Score</h3>
                     <div id="quality-dashboard-content">
                         <div class="empty-state">
                             <p>Upload a dataset to generate a quality report.</p>
@@ -268,4 +281,5 @@
     <!-- Page JavaScript -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
+
 </html>

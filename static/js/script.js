@@ -329,10 +329,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         );
 
                         alert(
-                            `Upload failed (${response.status}): ${
-                                text.slice(0, 300) ||
-                                response.statusText ||
-                                "Server error"
+                            `Upload failed (${response.status}): ${text.slice(0, 300) ||
+                            response.statusText ||
+                            "Server error"
                             }`
                         );
 
@@ -379,9 +378,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (filenameDisplay) {
 
                             filenameDisplay.textContent =
-                                `Selected: ${
-                                    data.filename ||
-                                    file.name
+                                `Selected: ${data.filename ||
+                                file.name
                                 }`;
 
                         }
@@ -653,14 +651,13 @@ document.addEventListener("DOMContentLoaded", () => {
         thead.innerHTML =
             `
                 <tr>
-                    ${
-                        headers
-                            .map(
-                                header =>
-                                    `<th>${escapeHtml(header)}</th>`
-                            )
-                            .join("")
-                    }
+                    ${headers
+                .map(
+                    header =>
+                        `<th>${escapeHtml(header)}</th>`
+                )
+                .join("")
+            }
                 </tr>
             `;
 
@@ -671,29 +668,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     return `
                         <tr>
-                            ${
-                                headers
-                                    .map(header => {
+                            ${headers
+                            .map(header => {
 
-                                        const value =
-                                            row[header];
+                                const value =
+                                    row[header];
 
-                                        return `
+                                return `
                                             <td>
-                                                ${
-                                                    value === null ||
-                                                    value === undefined
-                                                        ? ""
-                                                        : escapeHtml(
-                                                            String(value)
-                                                        )
-                                                }
+                                                ${value === null ||
+                                        value === undefined
+                                        ? ""
+                                        : escapeHtml(
+                                            String(value)
+                                        )
+                                    }
                                             </td>
                                         `;
 
-                                    })
-                                    .join("")
-                            }
+                            })
+                            .join("")
+                        }
                         </tr>
                     `;
 
@@ -925,9 +920,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         appendChatMessage(
                             "assistant",
-                            `⚠️ ${
-                                data.error ||
-                                "Unable to process the question."
+                            `⚠️ ${data.error ||
+                            "Unable to process the question."
                             }`
                         );
 
@@ -1050,11 +1044,10 @@ document.addEventListener("DOMContentLoaded", () => {
                             )
                             .map(
                                 line =>
-                                    `<li>${
-                                        line.replace(
-                                            /^[ \t]*[-*][ \t]+/,
-                                            ""
-                                        )
+                                    `<li>${line.replace(
+                                        /^[ \t]*[-*][ \t]+/,
+                                        ""
+                                    )
                                     }</li>`
                             )
                             .join("");
@@ -1140,11 +1133,10 @@ document.addEventListener("DOMContentLoaded", () => {
         message.innerHTML = `
 
             <div class="avatar">
-                ${
-                    role === "user"
-                        ? "👤"
-                        : "🤖"
-                }
+                ${role === "user"
+                ? "<i class='fa-solid fa-user'></i>"
+                : "<i class='fa-solid fa-robot'></i>"
+            }
             </div>
 
             <div class="message-content">
@@ -1174,7 +1166,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
             !chartJson ||
             typeof Plotly ===
-                "undefined" ||
+            "undefined" ||
             !chatMessages
         ) {
             return;
@@ -1351,12 +1343,12 @@ document.addEventListener("DOMContentLoaded", () => {
                                     <div
                                         class="chip"
                                         data-q="${escapeHtml(
-                                            question
-                                        )}"
+                                    question
+                                )}"
                                     >
                                         ${escapeHtml(
-                                            question
-                                        )}
+                                    question
+                                )}
                                     </div>
 
                                 `;
@@ -1484,7 +1476,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 agentResult.x_col,
                 agentResult.y_col,
                 agentResult.chart_type ||
-                    "bar"
+                "bar"
             );
 
 
@@ -1801,7 +1793,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
             !chartJson ||
             typeof Plotly ===
-                "undefined"
+            "undefined"
         ) {
 
             console.error(
@@ -1890,7 +1882,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     box
                 );
 
-            } catch (error) {}
+            } catch (error) { }
 
         });
 
@@ -2107,24 +2099,23 @@ document.addEventListener("DOMContentLoaded", () => {
                                             class="insight-title"
                                         >
                                             ${escapeHtml(
-                                                insight.title ||
-                                                ""
-                                            )}
+                                insight.title ||
+                                ""
+                            )}
                                         </h4>
 
 
                                         <span
-                                            class="badge ${
-                                                insight.level ===
-                                                "Good"
-                                                    ? "badge-good"
-                                                    : "badge-warning"
-                                            }"
+                                            class="badge ${insight.level ===
+                                    "Good"
+                                    ? "badge-good"
+                                    : "badge-warning"
+                                }"
                                         >
                                             ${escapeHtml(
-                                                insight.level ||
-                                                ""
-                                            )}
+                                    insight.level ||
+                                    ""
+                                )}
                                         </span>
 
                                     </div>
@@ -2138,9 +2129,9 @@ document.addEventListener("DOMContentLoaded", () => {
                                         "
                                     >
                                         ${escapeHtml(
-                                            insight.explanation ||
-                                            ""
-                                        )}
+                                    insight.explanation ||
+                                    ""
+                                )}
                                     </p>
 
 
@@ -2154,9 +2145,9 @@ document.addEventListener("DOMContentLoaded", () => {
                                     >
                                         Indicator:
                                         ${escapeHtml(
-                                            insight.metric ||
-                                            ""
-                                        )}
+                                    insight.metric ||
+                                    ""
+                                )}
                                     </div>
 
                                 </div>
@@ -2179,9 +2170,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             "
                         >
                             ${escapeHtml(
-                                data.error ||
-                                "Please upload a dataset first to generate AI insights."
-                            )}
+                    data.error ||
+                    "Please upload a dataset first to generate AI insights."
+                )}
                         </p>
 
                     </div>
@@ -2268,80 +2259,80 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <td>
                                     <strong>
                                         ${escapeHtml(
-                                            profile.column_name
-                                        )}
+                            profile.column_name
+                        )}
                                     </strong>
                                 </td>
 
                                 <td>
                                     <code>
                                         ${escapeHtml(
-                                            profile.data_type
-                                        )}
+                            profile.data_type
+                        )}
                                     </code>
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.unique_values ??
-                                            ""
-                                        )
-                                    )}
+                            String(
+                                profile.unique_values ??
+                                ""
+                            )
+                        )}
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.missing_values ??
-                                            ""
-                                        )
-                                    )}
+                            String(
+                                profile.missing_values ??
+                                ""
+                            )
+                        )}
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.missing_percentage ??
-                                            ""
-                                        )
-                                    )}%
+                            String(
+                                profile.missing_percentage ??
+                                ""
+                            )
+                        )}%
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.mean ??
-                                            ""
-                                        )
-                                    )}
+                            String(
+                                profile.mean ??
+                                ""
+                            )
+                        )}
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.median ??
-                                            ""
-                                        )
-                                    )}
+                            String(
+                                profile.median ??
+                                ""
+                            )
+                        )}
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.min ??
-                                            ""
-                                        )
-                                    )}
+                            String(
+                                profile.min ??
+                                ""
+                            )
+                        )}
                                 </td>
 
                                 <td>
                                     ${escapeHtml(
-                                        String(
-                                            profile.max ??
-                                            ""
-                                        )
-                                    )}
+                            String(
+                                profile.max ??
+                                ""
+                            )
+                        )}
                                 </td>
 
                             </tr>
@@ -2441,8 +2432,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         <h4>
                             Overall Health Status:
                             ${escapeHtml(
-                                q.status || ""
-                            )}
+                q.status || ""
+            )}
                         </h4>
 
 
@@ -2452,9 +2443,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             "
                         >
                             ${escapeHtml(
-                                q.summary_message ||
-                                ""
-                            )}
+                q.summary_message ||
+                ""
+            )}
                         </p>
 
                     </div>
@@ -2475,24 +2466,23 @@ document.addEventListener("DOMContentLoaded", () => {
                     "
                 >
 
-                    ${
-                        (q.recommendations || [])
-                            .map(
-                                recommendation =>
-                                    `
+                    ${(q.recommendations || [])
+                    .map(
+                        recommendation =>
+                            `
                                     <li
                                         style="
                                             margin-bottom:.35rem;
                                         "
                                     >
                                         ${escapeHtml(
-                                            recommendation
-                                        )}
+                                recommendation
+                            )}
                                     </li>
                                     `
-                            )
-                            .join("")
-                    }
+                    )
+                    .join("")
+                }
 
                 </ul>
 
@@ -2568,7 +2558,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (
                     mediaRecorder &&
                     mediaRecorder.state ===
-                        "recording"
+                    "recording"
                 ) {
 
                     stopAndTranscribe();
@@ -2615,9 +2605,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     if (
                         error.name ===
-                            "NotAllowedError" ||
+                        "NotAllowedError" ||
                         error.name ===
-                            "PermissionDeniedError"
+                        "PermissionDeniedError"
                     ) {
 
                         showVoiceToast(
@@ -2834,7 +2824,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (
             !mediaRecorder ||
             mediaRecorder.state !==
-                "recording"
+            "recording"
         ) {
             return;
         }

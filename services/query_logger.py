@@ -41,17 +41,17 @@ def log_query_start(question: str) -> None:
     """Print the incoming query banner."""
     divider = "=" * 80
     _safe_print(f"\n{_CYAN}{_BOLD}{divider}{_RESET}")
-    _safe_print(f"{_CYAN}{_BOLD}📥 [QUERY RECEIVED]:{_RESET} \"{_BOLD}{question}{_RESET}\"")
+    _safe_print(f"{_CYAN}{_BOLD}➜  [QUERY RECEIVED]:{_RESET} \"{_BOLD}{question}{_RESET}\"")
     _safe_print(f"{_CYAN}{divider[:40]}{_RESET}")
 
 
 def log_local_route(fn_name: str, fn_args: Dict[str, Any], answer: Optional[str] = None, chart: bool = False) -> None:
     """Log when a query is successfully routed by the Local Intent Router (Pattern A)."""
-    _safe_print(f"{_GREEN}{_BOLD}📍 [ROUTE]:{_RESET} {_GREEN}Local Intent Router (Pattern A — Fast Local Execution){_RESET}")
-    _safe_print(f"{_GREEN}{_BOLD}⚙️  [MATCHED FUNCTION]:{_RESET} {_BOLD}{fn_name}{_RESET}")
+    _safe_print(f"{_GREEN}{_BOLD}🧭 [ROUTE]:{_RESET} {_GREEN}Local Intent Router (Pattern A — Fast Local Execution){_RESET}")
+    _safe_print(f"{_GREEN}{_BOLD}⚡ [MATCHED FUNCTION]:{_RESET} {_BOLD}{fn_name}{_RESET}")
     _safe_print(f"{_DIM}   Arguments:{_RESET} {json.dumps(fn_args, default=str)}")
     if chart:
-        _safe_print(f"{_BLUE}📊 [CHART]:{_RESET} Chart generated successfully")
+        _safe_print(f"{_BLUE}📈 [CHART]:{_RESET} Chart generated successfully")
     if answer:
         preview = answer.strip().replace("\n", " ")[:200]
         _safe_print(f"{_DIM}💬 [OUTPUT PREVIEW]:{_RESET} {preview}...")
@@ -60,12 +60,12 @@ def log_local_route(fn_name: str, fn_args: Dict[str, Any], answer: Optional[str]
 
 def log_gemini_pass1(model_name: str, fn_name: str, fn_args: Dict[str, Any], answer: Optional[str] = None, chart: bool = False) -> None:
     """Log when Gemini Pass 1 selects a declared function."""
-    _safe_print(f"{_MAGENTA}{_BOLD}📍 [ROUTE]:{_RESET} {_MAGENTA}Gemini Pass 1 (Function Calling via AI){_RESET}")
+    _safe_print(f"{_MAGENTA}{_BOLD}🧭 [ROUTE]:{_RESET} {_MAGENTA}Gemini Pass 1 (Function Calling via AI){_RESET}")
     _safe_print(f"{_DIM}🤖 [MODEL]:{_RESET} {model_name}")
-    _safe_print(f"{_MAGENTA}{_BOLD}⚙️  [GEMINI SELECTED FUNCTION]:{_RESET} {_BOLD}{fn_name}{_RESET}")
+    _safe_print(f"{_MAGENTA}{_BOLD}⚡ [GEMINI SELECTED FUNCTION]:{_RESET} {_BOLD}{fn_name}{_RESET}")
     _safe_print(f"{_DIM}   Arguments:{_RESET} {json.dumps(fn_args, default=str)}")
     if chart:
-        _safe_print(f"{_BLUE}📊 [CHART]:{_RESET} Chart generated successfully")
+        _safe_print(f"{_BLUE}📈 [CHART]:{_RESET} Chart generated successfully")
     if answer:
         preview = answer.strip().replace("\n", " ")[:200]
         _safe_print(f"{_DIM}💬 [OUTPUT PREVIEW]:{_RESET} {preview}...")
@@ -74,7 +74,7 @@ def log_gemini_pass1(model_name: str, fn_name: str, fn_args: Dict[str, Any], ans
 
 def log_pattern_b_code(model_name: str, code: str, success: bool, result: Optional[str] = None, error: Optional[str] = None) -> None:
     """Log generated Python / Pandas code from Gemini Pattern B and sandbox execution result."""
-    _safe_print(f"{_YELLOW}{_BOLD}📍 [ROUTE]:{_RESET} {_YELLOW}Gemini Pattern B (Dynamic Pandas Code Generation Fallback){_RESET}")
+    _safe_print(f"{_YELLOW}{_BOLD}🧭 [ROUTE]:{_RESET} {_YELLOW}Gemini Pattern B (Dynamic Pandas Code Generation Fallback){_RESET}")
     _safe_print(f"{_DIM}🤖 [MODEL]:{_RESET} {model_name}")
     _safe_print(f"{_YELLOW}{_BOLD}💻 [GENERATED PYTHON / PANDAS CODE]:{_RESET}")
     _safe_print(f"{_DIM}{'-' * 80}{_RESET}")
@@ -83,12 +83,12 @@ def log_pattern_b_code(model_name: str, code: str, success: bool, result: Option
     _safe_print(f"{_DIM}{'-' * 80}{_RESET}")
 
     if success:
-        _safe_print(f"{_GREEN}{_BOLD}⚡ [SANDBOX EXECUTION STATUS]:{_RESET} {_GREEN}SUCCESS{_RESET}")
+        _safe_print(f"{_GREEN}{_BOLD}✔  [SANDBOX EXECUTION STATUS]:{_RESET} {_GREEN}SUCCESS{_RESET}")
         if result:
             preview = str(result).strip().replace("\n", " ")[:250]
             _safe_print(f"{_DIM}   Raw Result:{_RESET} {preview}...")
     else:
-        _safe_print(f"{_RED}{_BOLD}❌ [SANDBOX EXECUTION ERROR]:{_RESET}")
+        _safe_print(f"{_RED}{_BOLD}✖  [SANDBOX EXECUTION ERROR]:{_RESET}")
         _safe_print(f"{_RED}   {error}{_RESET}")
 
     _safe_print(f"{_CYAN}{'=' * 80}{_RESET}\n")
@@ -96,7 +96,7 @@ def log_pattern_b_code(model_name: str, code: str, success: bool, result: Option
 
 def log_api_failure(model_name: str, error_msg: str, is_quota: bool = False) -> None:
     """Log a Gemini API failure (rate limit, quota, network, or auth)."""
-    _safe_print(f"{_RED}{_BOLD}⚠️  [GEMINI API ERROR]:{_RESET}")
+    _safe_print(f"{_RED}{_BOLD}⚠  [GEMINI API ERROR]:{_RESET}")
     _safe_print(f"{_DIM}🤖 [MODEL]:{_RESET} {model_name}")
     if is_quota:
         _safe_print(f"{_YELLOW}{_BOLD}🚨 [REASON]:{_RESET} {_YELLOW}API Quota / Rate Limit Exceeded (HTTP 429). Falling back to local heuristics.{_RESET}")
@@ -106,7 +106,7 @@ def log_api_failure(model_name: str, error_msg: str, is_quota: bool = False) -> 
 
 def log_heuristic_fallback(reason: str, answer: Optional[str] = None) -> None:
     """Log when local heuristic fallback is used."""
-    _safe_print(f"{_BLUE}{_BOLD}📍 [ROUTE]:{_RESET} {_BLUE}Local Heuristic Fallback{_RESET}")
+    _safe_print(f"{_BLUE}{_BOLD}🧭 [ROUTE]:{_RESET} {_BLUE}Local Heuristic Fallback{_RESET}")
     _safe_print(f"{_DIM}   Reason:{_RESET} {reason}")
     if answer:
         preview = answer.strip().replace("\n", " ")[:200]
