@@ -592,17 +592,20 @@ def _fn_get_aov_ranking(
     winner = result.iloc[0]
     winner_name = str(winner[group_col])
     winner_aov = float(winner["Average_Order_Value"])
+    rank_type = "lowest" if ascending else "highest"
 
     return {
-        # Deliberately return only the entity name. The requested chatbot
-        # answer for a single-winner AOV question is simply e.g. "Premium".
-        "answer": winner_name,
+        "answer": f"{winner_name} — {rank_type} average order value: {winner_aov:,.2f}.",
         "summary": (
-            f"{winner_name} has the highest average order value of "
+            f"{winner_name} has the {rank_type} average order value of "
             f"{winner_aov:,.2f}."
         ),
         "needs_llm": False,
-        "aov_result": result,
+        "result_df": result,
+        "x_col": group_col,
+        "y_col": "Average_Order_Value",
+        "chart_type": "bar",
+        "chart_title": f"Average Order Value by {group_col}",
         "winner": winner_name,
         "average_order_value": winner_aov,
         "group_col": group_col,
@@ -640,6 +643,7 @@ def _fn_universal_business_query_core(
     groups: list = None,
     top_n: int = 10,
     ascending: bool = False,
+    **kwargs,
 ) -> Dict[str, Any]:
     """Deterministic calculations shared by chatbot, AI analyst and charts.
 
@@ -830,7 +834,8 @@ def _fn_universal_business_query_core(
         r = r.sort_values("Sales", ascending=False, kind="stable").reset_index(drop=True)
         if r.empty: return fail("No category has a below-average profit margin.")
         w = r.iloc[0]
-        return {"answer": str(w[group_col]), "summary": f"{w[group_col]} has the highest sales among below-average-margin categories.", "needs_llm": False,
+        margin_pct = f"{w['Profit_Margin']:.1%}" if pd.notna(w.get("Profit_Margin")) else "below average"
+        return {"answer": f"{w[group_col]} — total sales: {w['Sales']:,.2f} (profit margin: {margin_pct}).", "summary": f"{w[group_col]} has the highest sales among below-average-margin categories.", "needs_llm": False,
                 "result_df": r[[group_col, "Sales", "Profit_Margin"]], "x_col": group_col, "y_col": "Sales", "chart_type": "bar", "chart_title": "Highest Sales Among Below-Average-Margin Categories"}
 
     # 3. Highest AOV by group.
@@ -840,7 +845,8 @@ def _fn_universal_business_query_core(
         r = r.groupby(group_col, dropna=False)[value_col].agg(["mean", "count"]).reset_index()
         r = r.rename(columns={"mean": "Average_Order_Value", "count": "Order_Count"}).sort_values("Average_Order_Value", ascending=ascending, kind="stable").reset_index(drop=True)
         w = r.iloc[0]
-        return {"answer": f"{w[group_col]} — average order value: {w['Average_Order_Value']:,.2f}.", "summary": f"{w[group_col]} has the highest average order value of {w['Average_Order_Value']:,.2f}.", "needs_llm": False,
+        rank_word = "lowest" if ascending else "highest"
+        return {"answer": f"{w[group_col]} — {rank_word} average order value: {w['Average_Order_Value']:,.2f}.", "summary": f"{w[group_col]} has the {rank_word} average order value of {w['Average_Order_Value']:,.2f}.", "needs_llm": False,
                 "result_df": r, "x_col": group_col, "y_col": "Average_Order_Value", "chart_type": "bar", "chart_title": "Average Order Value by Segment"}
 
     # 4. Highest total profit among countries with > threshold unique orders.
@@ -852,7 +858,7 @@ def _fn_universal_business_query_core(
         r = g[g["Order_Count"] > float(threshold or 1000)].sort_values("Total_Profit", ascending=False, kind="stable").reset_index(drop=True)
         if r.empty: return fail(f"No country has more than {int(threshold or 1000):,} unique orders.")
         w = r.iloc[0]
-        return {"answer": str(w[group_col]), "summary": f"{w[group_col]} generated the highest total profit among countries with more than {int(threshold or 1000):,} orders.", "needs_llm": False,
+        return {"answer": f"{w[group_col]} — total profit: {w['Total_Profit']:,.2f}.", "summary": f"{w[group_col]} generated the highest total profit among countries with more than {int(threshold or 1000):,} orders.", "needs_llm": False,
                 "result_df": r, "x_col": group_col, "y_col": "Total_Profit", "chart_type": "bar", "chart_title": "Total Profit by Country (> Order Threshold)"}
 
     # 5. Highest average order profit by payment method.
@@ -875,8 +881,90 @@ def _fn_universal_business_query_core(
         r = group_sum(value_col).reset_index().rename(columns={"value": "Total_Sales"})
         avg_sales = r["Total_Sales"].mean() if not r.empty else np.nan
         r = r[r["Total_Sales"] > avg_sales].sort_values("Total_Sales", ascending=False, kind="stable").reset_index(drop=True)
-        return {"answer": ", ".join(map(str, r[group_col].tolist())) if not r.empty else "None", "summary": f"{len(r)} categories have total sales above the average category sales.", "needs_llm": False,
-                "result_df": r, "x_col": group_col, "y_col": "Total_Sales", "chart_type": "bar", "chart_title": "Categories Above Average Sales"}
+        return {
+            "answer": ", ".join(map(str, r[group_col].tolist())) if not r.empty else "None",
+            "summary": f"{len(r)} categories have total sales above the average category sales.",
+            "needs_llm": False,
+            "result_df": r,
+            "x_col": group_col,
+            "y_col": "Total_Sales",
+            "chart_type": "bar",
+            "chart_title": "Categories Above Average Sales"
+        }
+
+    # 6b. Generalized single-metric above/below average entity filtering.
+    if operation == "entity_above_below_avg":
+        metric = value_col or kwargs.get("metric") or roles.get("sales")
+        op = kwargs.get("op", ">")
+        agg = kwargs.get("agg", "sum" if not re.search(r"\b(margin|ratio|rate|discount|rating|price)\b", str(metric).lower()) else "mean")
+        x = work[[group_col, metric]].dropna()
+        if x.empty:
+            return fail(f"Unable to calculate {metric} by {group_col}.")
+        val_name = f"Total_{metric}" if agg == "sum" else f"Average_{metric}"
+        g = x.groupby(group_col, dropna=False)[metric].agg(agg).reset_index(name=val_name)
+        benchmark_avg = g[val_name].mean() if not g.empty else 0.0
+        if op == ">":
+            r = g[g[val_name] > benchmark_avg].sort_values(val_name, ascending=False, kind="stable").reset_index(drop=True)
+            dir_text = "above"
+        else:
+            r = g[g[val_name] < benchmark_avg].sort_values(val_name, ascending=True, kind="stable").reset_index(drop=True)
+            dir_text = "below"
+        metric_clean = metric.replace("_", " ")
+        if r.empty:
+            ans = f"None — no {group_col.lower()} has {metric_clean} {dir_text} the average."
+        else:
+            names = r[group_col].tolist()
+            ans = ", ".join(map(str, names))
+        return {
+            "answer": ans,
+            "summary": f"{len(r)} {group_col.lower()}(s) have {metric_clean} {dir_text} the average.",
+            "needs_llm": False,
+            "result_df": g.sort_values(val_name, ascending=False).reset_index(drop=True),
+            "x_col": group_col,
+            "y_col": val_name,
+            "chart_type": "bar",
+            "chart_title": f"{group_col} with {metric_clean.title()} {dir_text.title()} Average",
+        }
+
+    # 6c. Target value matching: Find entity with aggregated metric matching target value
+    if operation == "entity_target_value_match":
+        metric = value_col or kwargs.get("metric") or roles.get("sales")
+        target_val = float(kwargs.get("target")) if kwargs.get("target") is not None else 0.0
+        agg = kwargs.get("agg", "sum" if not re.search(r"\b(margin|ratio|rate|discount|rating|price)\b", str(metric).lower()) else "mean")
+        x = work[[group_col, metric]].dropna()
+        if x.empty:
+            return fail(f"Unable to calculate {metric} for {group_col}.")
+        if agg == "mean":
+            val_name = metric if metric.lower().startswith("average_") or metric.lower().startswith("avg_") else f"Average_{metric}"
+        else:
+            val_name = metric if metric.lower().startswith("total_") or metric.lower().startswith("sum_") else f"Total_{metric}"
+        g = x.groupby(group_col, dropna=False)[metric].agg(agg).reset_index(name=val_name)
+        g["_diff"] = (g[val_name] - target_val).abs()
+        g = g.sort_values("_diff", ascending=True, kind="stable").reset_index(drop=True)
+        best = g.iloc[0]
+        winner_name = str(best[group_col])
+        winner_val = float(best[val_name])
+        metric_clean = metric.replace("_", " ").lower()
+        val_formatted = _format_percent_value(winner_val) if re.search(r"\b(discount|ratio|margin|rate|pct|percent)\b", metric_clean) else f"{winner_val:,.2f}"
+        if metric_clean.startswith("total ") and agg == "sum":
+            desc = metric_clean
+        elif (metric_clean.startswith("average ") or metric_clean.startswith("avg ")) and agg == "mean":
+            desc = metric_clean
+        else:
+            agg_word = "average" if agg == "mean" else "total"
+            desc = f"{agg_word} {metric_clean}"
+        answer = f"{winner_name} — {desc}: {val_formatted}."
+        chart_df = g.drop(columns=["_diff"]).sort_values(val_name, ascending=False, kind="stable").reset_index(drop=True)
+        return {
+            "answer": answer,
+            "summary": f"{winner_name} has {desc} of {val_formatted}.",
+            "needs_llm": False,
+            "result_df": chart_df,
+            "x_col": group_col,
+            "y_col": val_name,
+            "chart_type": "bar",
+            "chart_title": f"{group_col} by {desc.title()}",
+        }
 
     # 7. Highest late-delivery rate among shipping modes with > sales threshold.
     if operation == "late_rate_min_sales":
@@ -909,13 +997,14 @@ def _fn_universal_business_query_core(
         return {"answer": f"{w[group_col]} — {int(w['Unique_Orders']):,} unique orders, representing {w['Order_Share']:.2%} of total unique orders.", "summary": f"{w[group_col]} has {int(w['Unique_Orders']):,} unique orders, representing {w['Order_Share']:.2%} of total unique orders.", "needs_llm": False,
                 "result_df": r, "x_col": group_col, "y_col": "Unique_Orders", "chart_type": "bar", "chart_title": "Unique Orders by Customer Segment"}
 
-    # 9. Highest average discount rate + its average profit ratio.
+    # 9. Highest / lowest average discount rate + its average profit ratio.
     if operation == "discount_max_with_ratio":
         x = work[[group_col, value_col, ratio_col]].dropna()
-        r = x.groupby(group_col, dropna=False).agg(Average_Discount_Rate=(value_col, "mean"), Average_Profit_Ratio=(ratio_col, "mean")).reset_index().sort_values("Average_Discount_Rate", ascending=False, kind="stable").reset_index(drop=True)
+        r = x.groupby(group_col, dropna=False).agg(Average_Discount_Rate=(value_col, "mean"), Average_Profit_Ratio=(ratio_col, "mean")).reset_index().sort_values("Average_Discount_Rate", ascending=ascending, kind="stable").reset_index(drop=True)
         if r.empty: return fail("Unable to calculate discount rate and profit ratio.")
         w = r.iloc[0]
-        return {"answer": f"{w[group_col]} — average discount rate: {_format_percent_value(w['Average_Discount_Rate'])}; average profit ratio: {_format_percent_value(w['Average_Profit_Ratio'])}.", "summary": f"{w[group_col]} has the highest average discount rate ({_format_percent_value(w['Average_Discount_Rate'])}) and an average profit ratio of {_format_percent_value(w['Average_Profit_Ratio'])}.", "needs_llm": False,
+        rank_word = "lowest" if ascending else "highest"
+        return {"answer": f"{w[group_col]} — {rank_word} average discount rate: {_format_percent_value(w['Average_Discount_Rate'])}; average profit ratio: {_format_percent_value(w['Average_Profit_Ratio'])}.", "summary": f"{w[group_col]} has the {rank_word} average discount rate ({_format_percent_value(w['Average_Discount_Rate'])}) and an average profit ratio of {_format_percent_value(w['Average_Profit_Ratio'])}.", "needs_llm": False,
                 "result_df": r, "x_col": group_col, "y_col": "Average_Discount_Rate", "chart_type": "bar", "chart_title": "Average Discount Rate by Category"}
 
     # 10. Countries above average sales and below average profit margin.
@@ -999,9 +1088,62 @@ def _fn_universal_business_query_core(
         r = o.groupby(group_col, dropna=False)["Order_Value"].mean().reset_index(name="Average_Order_Value").merge(sales, on=group_col, how="left")
         r = r.sort_values("Average_Order_Value", ascending=False, kind="stable").reset_index(drop=True)
         if r.empty: return fail("Unable to calculate AOV for the top 10 countries by sales.")
-        w = r.iloc[0]
-        return {"answer": f"{w[group_col]} — average order value: {w['Average_Order_Value']:,.2f} (highest among the top {int(top_n or 10)} countries by total sales).", "summary": f"{w[group_col]} has the highest average order value among the top {int(top_n or 10)} countries by total sales ({w['Average_Order_Value']:,.2f}).", "needs_llm": False,
-                "result_df": r, "x_col": group_col, "y_col": "Average_Order_Value", "chart_type": "bar", "chart_title": "AOV Among Top 10 Countries by Sales"}
+    # 16. Universal entity filtering by two metrics (above/below average combinations)
+    if operation == "entities_above_below_avg_compare":
+        m1 = kwargs.get("metric1") or value_col
+        m2 = kwargs.get("metric2") or ratio_col or profit_col
+        op1 = kwargs.get("op1", ">")
+        op2 = kwargs.get("op2", "<")
+        agg1 = kwargs.get("agg1", "sum")
+        agg2 = kwargs.get("agg2", "mean")
+
+        x = work[[group_col, m1, m2]].dropna()
+        if x.empty:
+            return fail(f"Unable to compare {group_col} on {m1} and {m2}.")
+
+        g = x.groupby(group_col, dropna=False).agg(
+            val1=(m1, agg1),
+            val2=(m2, agg2)
+        ).reset_index()
+
+        mean1 = g["val1"].mean()
+        mean2 = g["val2"].mean()
+
+        mask1 = g["val1"] > mean1 if op1 == ">" else g["val1"] < mean1
+        mask2 = g["val2"] > mean2 if op2 == ">" else g["val2"] < mean2
+
+        r = g[mask1 & mask2].sort_values("val1", ascending=False, kind="stable").reset_index(drop=True)
+
+        m1_clean = m1.replace("_", " ")
+        m2_clean = m2.replace("_", " ")
+        m1_dir = "above" if op1 == ">" else "below"
+        m2_dir = "above" if op2 == ">" else "below"
+
+        if r.empty:
+            return {
+                "answer": f"None — no {group_col.lower()} has {m1_dir}-average {m1_clean} and {m2_dir}-average {m2_clean}.",
+                "summary": f"No {group_col.lower()} satisfies {m1_dir}-average {m1_clean} and {m2_dir}-average {m2_clean}.",
+                "needs_llm": False,
+                "result_df": g.sort_values("val1", ascending=False).rename(columns={"val1": f"{agg1.title()} {m1}", "val2": f"{agg2.title()} {m2}"}),
+                "x_col": group_col,
+                "y_col": f"{agg1.title()} {m1}",
+                "chart_type": "bar",
+                "chart_title": f"{group_col} Comparison: {m1_clean} vs {m2_clean}",
+            }
+
+        names = r[group_col].tolist()
+        formatted_names = ", ".join(map(str, names))
+
+        return {
+            "answer": formatted_names,
+            "summary": f"{formatted_names} has {m1_dir}-average {m1_clean} and {m2_dir}-average {m2_clean}.",
+            "needs_llm": False,
+            "result_df": r.rename(columns={"val1": f"{agg1.title()} {m1}", "val2": f"{agg2.title()} {m2}"}),
+            "x_col": group_col,
+            "y_col": f"{agg1.title()} {m1}",
+            "chart_type": "bar",
+            "chart_title": f"{group_col} with {m1_dir.title()} {m1_clean} & {m2_dir.title()} {m2_clean}",
+        }
 
     return fail("Unable to match the requested business analysis.")
 
@@ -1172,6 +1314,33 @@ def _fn_universal_business_query(
             chart_df["Above_Average_Profit_Ratio"] = chart_df["Average_Profit_Ratio"] > avg_ratio
             chart_df["Below_Average_Sales"] = chart_df["Total_Sales"] < avg_sales
             chart_df = chart_df.sort_values("Average_Profit_Ratio", ascending=False, kind="stable").reset_index(drop=True)
+
+        elif operation == "entity_above_below_avg":
+            metric = value_col or kwargs.get("metric") or roles.get("sales")
+            agg = kwargs.get("agg", "sum" if not re.search(r"\b(margin|ratio|rate|discount|rating|price)\b", str(metric).lower()) else "mean")
+            if metric and group_col:
+                val_name = f"Total_{metric}" if agg == "sum" else f"Average_{metric}"
+                chart_df = work[[group_col, metric]].dropna().groupby(group_col, dropna=False)[metric].agg(agg).reset_index(name=val_name).sort_values(val_name, ascending=False, kind="stable").reset_index(drop=True)
+                if not chart_df.empty:
+                    chart_df["Above_Average"] = chart_df[val_name] > chart_df[val_name].mean()
+
+        elif operation == "entities_above_below_avg_compare":
+            m1 = kwargs.get("metric1") or value_col
+            m2 = kwargs.get("metric2") or ratio_col or profit_col
+            agg1 = kwargs.get("agg1", "sum")
+            agg2 = kwargs.get("agg2", "mean")
+            if m1 and m2 and group_col:
+                x = work[[group_col, m1, m2]].dropna()
+                chart_df = x.groupby(group_col, dropna=False).agg(
+                    val1=(m1, agg1),
+                    val2=(m2, agg2)
+                ).reset_index().rename(columns={"val1": f"{agg1.title()} {m1}", "val2": f"{agg2.title()} {m2}"}).sort_values(f"{agg1.title()} {m1}", ascending=False, kind="stable").reset_index(drop=True)
+
+        elif operation == "entity_target_value_match":
+            metric = value_col or kwargs.get("metric") or roles.get("sales")
+            agg = kwargs.get("agg", "sum" if not re.search(r"\b(margin|ratio|rate|discount|rating|price)\b", str(metric).lower()) else "mean")
+            val_name = f"Average_{metric}" if agg == "mean" else f"Total_{metric}"
+            chart_df = work[[group_col, metric]].dropna().groupby(group_col, dropna=False)[metric].agg(agg).reset_index(name=val_name).sort_values(val_name, ascending=False, kind="stable").reset_index(drop=True)
 
         elif operation == "top10_sales_aov":
             x = work[[group_col, order_col, value_col]].dropna()
@@ -1404,15 +1573,15 @@ class DataAIAgent:
             # Identifiers
             "customer_id":     _pick_best(self.df.columns, ["customer id", "customer_id", "customerid", "client id", "buyer id"], ["customer_id", "customerid"]),
             "product_id":      _pick_best(self.df.columns, ["product card id", "product id", "product_id", "item id", "sku"], ["product_id", "productcardid"]),
-            "order_id":        _pick_best(self.df.columns, ["order id", "order_id", "orderid"], ["order_id", "orderid"]),
+            "order_id":        _pick_best(self.df.columns, ["order id", "order_id", "orderid", "invoice id", "invoice_id", "invoiceid", "transaction id", "transaction_id", "purchase id", "purchase_id"], ["order_id", "orderid", "invoice"]),
             # Entities
             "customer":        _pick_best(cat_cols, ["customer name", "customer_name", "customer full name", "customer fname", "customer"], ["customer", "client", "buyer"]),
             "product":         _pick_best(cat_cols, ["product name", "product_name", "product title", "product"], ["product", "item", "sku"]),
             "category":        _pick_best(cat_cols, ["category name", "category_name", "product category", "category"], ["category", "dept", "department"]),
             "segment":         _pick_best(cat_cols, ["customer segment", "customer_segment", "segment", "client segment"], ["segment"]),
-            "shipping_mode":   _pick_best(cat_cols, ["shipping mode", "shipping_mode", "ship mode", "delivery mode"], ["shipping mode", "ship mode"]),
-            "order_status":    _pick_best(cat_cols, ["order status", "order_status"], ["order status"]),
-            "delivery_status": _pick_best(cat_cols, ["delivery status", "delivery_status"], ["delivery status"]),
+            "shipping_mode":   _pick_best(cat_cols, ["shipping mode", "shipping_mode", "ship mode", "shipping type", "shipping_type", "ship type", "delivery mode", "delivery type"], ["shipping mode", "ship mode", "shipping", "delivery"]),
+            "order_status":    _pick_best(cat_cols, ["order status", "order_status", "status"], ["order status", "status"]),
+            "delivery_status": _pick_best(cat_cols, ["delivery status", "delivery_status", "shipping status", "stock status", "stock_status"], ["delivery status", "stock status"]),
             "department":      _pick_best(cat_cols, ["department name", "department_name", "department"], ["department", "dept"]),
             "region":          _pick_best(cat_cols, ["order region", "customer region", "region"], ["region", "territory", "zone"]),
             "country":         _pick_best(cat_cols, ["order country", "customer country", "country"], ["country", "nation"]),
@@ -1426,13 +1595,13 @@ class DataAIAgent:
             "profit_ratio":    _pick_best(num_cols, ["order item profit ratio", "profit ratio", "profit margin", "margin ratio", "profit_margin", "profit %", "margin %"], ["ratio", "margin"]),
             "quantity":        _pick_best(num_cols, ["order item quantity", "quantity", "units", "qty"], ["quantity", "qty", "units"]),
             "discount":        _pick_best(num_cols, ["order item discount", "discount", "order item discount rate"], ["discount", "rebate"]),
-            "cost":            _pick_best(num_cols, ["product price", "cost", "expense", "spend", "cogs"], ["cost", "expense"]),
+            "cost":            _pick_best(num_cols, ["product price", "cost price", "cost_price", "cost", "expense", "spend", "cogs"], ["cost", "expense"]),
             "delivery":        _pick_best(num_cols, ["days for shipping (real)", "delays for shipping", "days for shipment (scheduled)"], ["shipping", "delivery", "days"]),
             "payment":         _pick_best(cat_cols, ["payment method", "payment type", "payment_method", "payment_type", "payment mode", "payment", "type"], ["payment", "pay_mode", "pay_type", "pay"]),
             # Roles for advanced charts
             "stage":           _pick_best(cat_cols, ["order status", "delivery status", "stage", "step", "status"], ["stage", "status", "phase"]),
             "hour":            _pick_best(num_cols + cat_cols, ["order hour", "hour", "hh"], ["hour"]),
-            "rating":          _pick_best(num_cols, ["rating", "score", "satisfaction"], ["rating", "score"]),
+            "rating":          _pick_best(num_cols, ["rating", "score", "satisfaction", "customer rating", "customer_rating"], ["rating", "score"]),
             "target":          _pick_best(num_cols, ["target", "goal", "budget"], ["target", "goal"]),
             "second_num":      num_cols[1] if len(num_cols) > 1 else (num_cols[0] if num_cols else None),
             "second_cat":      cat_cols[1] if len(cat_cols) > 1 else (cat_cols[0] if cat_cols else None),
@@ -1484,8 +1653,6 @@ class DataAIAgent:
 
     # ─────────────────────────────────────────────────────────────────────────
     # Local Intent Router — Zero Gemini API Calls
-    # ─────────────────────────────────────────────────────────────────────────
-
     def _local_intent_router(self, question: str) -> Optional[tuple]:
         """
         Pattern-match common questions locally and return (fn_name, fn_args) tuples.
@@ -1533,17 +1700,17 @@ class DataAIAgent:
                 if any(w in q_stemmed for w in ["discount", "discounts", "rebate"]):
                     target = next((c for c in col_list if "discount" in c.lower()), None)
                     if target: return target
-                if any(w in q_stemmed for w in ["price", "pricing"]):
+                if any(w in q_stemmed for w in ["price", "pricing", "selling price"]):
                     target = next((c for c in col_list if "price" in c.lower()), None)
                     if target: return target
-                if any(w in q_stemmed for w in ["cost", "expense", "cogs"]):
+                if any(w in q_stemmed for w in ["cost", "expense", "cogs", "cost price"]):
                     target = next((c for c in col_list if any(k in c.lower() for k in ["cost", "expense"])), None)
                     if target: return target
 
             for col in col_list:
                 c_clean = col.lower().replace("_", " ").replace("-", " ")
                 words = [_stem(w) for w in re.split(r"[\s_\-]+", c_clean) if len(w) > 2 and (not is_num or w not in entity_stopwords)]
-                if any(w in q_stemmed or any(w in qw or qw in w for qw in q_stemmed if len(qw) > 3) for w in words):
+                if any(w in q_stemmed for w in words):
                     return col
             return fallback
 
@@ -1554,13 +1721,13 @@ class DataAIAgent:
             def _map_phrase(phrase):
                 if re.search(r'\b(payment\s*method|payment\s*type|payment\s*mode|payment\s*option|payment\s*channel|payment|pay\s*method|pay\s*type)\b', phrase):
                     return roles.get('payment') or next((c for c in self.df.columns if "payment" in c.lower() or "pay" in c.lower()), None)
-                if re.search(r'\b(shipping\s*mode|ship\s*mode|delivery\s*mode|shipping\s*type)\b', phrase):
+                if re.search(r'\b(shipping\s*mode|ship\s*mode|delivery\s*mode|shipping\s*type|ship\s*type)\b', phrase):
                     return roles.get('shipping_mode') or 'Shipping Mode'
                 if re.search(r'\b(customer\s*segment|client\s*segment|segment)\b', phrase):
                     return roles.get('segment') or 'Customer Segment'
                 if re.search(r'\b(product\s*name|product|item\s*name|item|sku|goods)\b', phrase):
                     return roles.get('product') or 'Product Name'
-                if re.search(r'\b(category\s*name|category|product\s*category)\b', phrase):
+                if re.search(r'\b(category\s*name|category|product\s*category|categories)\b', phrase):
                     return roles.get('category') or 'Category Name'
                 if re.search(r'\b(department\s*name|department|dept)\b', phrase):
                     return roles.get('department') or 'Department Name'
@@ -1601,6 +1768,8 @@ class DataAIAgent:
                 return roles.get('quantity') or _find_col_in_q(roles["num"], is_num=True)
             if re.search(r'\b(discount|rebate)\b', text):
                 return roles.get('discount') or _find_col_in_q(roles["num"], is_num=True)
+            if re.search(r'\b(cost|price|cogs|expense)\b', text):
+                return roles.get('cost') or _find_col_in_q(roles["num"], is_num=True)
             if re.search(r'\b(delivery time|shipping days|lead time|shipping duration|days for shipping|delay)\b', text):
                 return roles.get('delivery') or _find_col_in_q(roles["num"], is_num=True)
             return _find_col_in_q(roles["num"], roles.get("sales"), is_num=True)
@@ -1672,7 +1841,8 @@ class DataAIAgent:
         if re.search(r"\bhighest\s+total\s+sales\b", q) and re.search(r"\bbelow[- ]average\s+(?:profit\s+)?margin\b", q) and category_col and sales_col and profit_col:
             return ("universal_business_query", {"operation": "sales_max_below_avg_margin", "group_col": category_col, "value_col": sales_col, "profit_col": profit_col})
 
-        if re.search(r"\bhighest\s+(?:average\s+order\s+value|aov)\b", q) and                 not re.search(r"\btop\s+10\s+countries\b", q) and segment_col and sales_col and order_col:
+        if re.search(r"\bhighest\s+(?:average\s+order\s+value|aov)\b", q) and \
+                not re.search(r"\btop\s+10\s+countries\b", q) and segment_col and sales_col and order_col:
             return ("universal_business_query", {"operation": "aov_rank", "group_col": segment_col, "order_col": order_col, "value_col": sales_col})
 
         if re.search(r"\bhighest\s+total\s+profit\b", q) and re.search(r"\b(?:more|greater)\s+than\s+1[,.]?000\s+orders\b", q) and country_col and profit_col and order_col:
@@ -1681,7 +1851,7 @@ class DataAIAgent:
         if re.search(r"\bhighest\s+average\s+order\s+profit\b", q) and payment_col and profit_col and order_col:
             return ("universal_business_query", {"operation": "avg_order_profit_rank", "group_col": payment_col, "order_col": order_col, "profit_col": profit_col})
 
-        if re.search(r"\bproduct\s+categories?\b", q) and re.search(r"\btotal\s+sales\b", q) and re.search(r"\babove\s+(?:the\s+)?average\s+category\s+sales\b", q) and category_col and sales_col:
+        if re.search(r"\b(?:product\s+)?categor(?:y|ies)\b", q) and re.search(r"\b(?:total\s+)?sales\b", q) and re.search(r"\b(?:above|higher than|greater than|more than)\s+(?:the\s+)?average\b", q) and category_col and sales_col:
             return ("universal_business_query", {"operation": "sales_above_avg_category", "group_col": category_col, "value_col": sales_col})
 
         if re.search(r"\bshipping\s+mode\b", q) and re.search(r"\blate[- ]delivery\s+rate\b", q) and re.search(r"\bmore\s+than\s+\$?\s*5\s*(?:million|m)\b", q):
@@ -1701,39 +1871,49 @@ class DataAIAgent:
         if re.search(r"\bcustomer\s+segment\b", q) and re.search(r"\bhighest\s+number\s+of\s+unique\s+orders\b", q) and segment_col and order_col:
             return ("universal_business_query", {"operation": "unique_orders_share", "group_col": segment_col, "order_col": order_col})
 
-        if re.search(r"\bhighest\s+average\s+discount\s+rate\b", q) and re.search(r"\baverage\s+profit\s+ratio\b", q) and category_col and discount_rate_col and ratio_col:
-            return ("universal_business_query", {"operation": "discount_max_with_ratio", "group_col": category_col, "value_col": discount_rate_col, "ratio_col": ratio_col})
+        if re.search(r"\b(highest|lowest|best|worst|top|bottom|max|min)\s+average\s+discount\b", q) and re.search(r"\baverage\s+(?:profit\s+ratio|profit\s+margin|profit|margin)\b", q) and category_col and discount_rate_col and (ratio_col or roles.get("profit_margin") or roles.get("profit")):
+            r_col = ratio_col or roles.get("profit_margin") or roles.get("profit")
+            is_lowest = bool(re.search(r"\b(lowest|bottom|least|worst|minimum|min)\b", q))
+            return ("universal_business_query", {"operation": "discount_max_with_ratio", "group_col": category_col, "value_col": discount_rate_col, "ratio_col": r_col, "ascending": is_lowest})
 
-        if re.search(r"\bcountries\b", q) and re.search(r"\babove[- ]average\s+sales\b", q) and re.search(r"\bbelow[- ]average\s+profit\s+margins?\b", q) and country_col and sales_col and profit_col:
-            return ("universal_business_query", {"operation": "countries_above_sales_below_margin", "group_col": country_col, "value_col": sales_col, "profit_col": profit_col})
+        # ── MULTI-METRIC & SINGLE-METRIC ABOVE / BELOW AVERAGE ENTITY FILTERING ──
+        if re.search(r"\b(above[- ]average|below[- ]average|higher than average|lower than average|more than average|less than average|above the average|below the average|higher than the average|lower than the average|greater than average|more than the average|less than the average)\b", q):
+            grp_col = _extract_target_group_col(q) or category_col or country_col or segment_col
+            if grp_col:
+                parts = re.split(r"\b(but|and|while having|while also|whereas|yet)\b", q, maxsplit=1)
+                part1 = parts[0] if parts else q
+                part2 = parts[-1] if len(parts) > 1 else None
 
-        if re.search(r"\bproducts?\b", q) and re.search(r"\bmore\s+than\s+\$?\s*500\s*(?:,?000|k)\b", q) and re.search(r"\bprofit\s+margin\b", q) and category_col is not None and sales_col and profit_col:
-            product_col = roles.get("product")
-            if product_col:
-                return ("universal_business_query", {"operation": "products_sales_margin_threshold", "group_col": product_col, "value_col": sales_col, "profit_col": profit_col, "threshold": 500_000})
+                op1 = "<" if re.search(r"\b(below|lower|less|under)\b", part1) else ">"
+                m1 = _extract_metric_col(part1) or roles.get("profit_margin") or roles.get("profit_ratio") or roles.get("sales")
+                agg1 = "mean" if (m1 and re.search(r"\b(margin|ratio|rate|average|avg|mean|percentage|pct|discount|rating|price)\b", m1.lower())) or re.search(r"\b(average|avg|mean)\b", part1) else "sum"
 
-        # Q12: route the intent even when Department is absent so the user gets
-        # a clear reason instead of a generic sales ranking.
-        if re.search(r"\bdepartment\b", q) and re.search(r"\bhighest\s+revenue\b", q) and re.search(r"\bcontribution\s+to\s+total\s+sales\b", q):
-            return ("universal_business_query", {
-                "operation": "department_revenue_share",
-                "group_col": department_col or "__missing_department_field__",
-                "value_col": sales_col or "__missing_sales_field__",
-            })
+                if part2 and part2 != part1 and re.search(r"\b(above|below|higher|lower|more|less|margin|ratio|sales|profit|discount|revenue|volume|rating)\b", part2):
+                    op2 = "<" if re.search(r"\b(below|lower|less|under)\b", part2) else ">"
+                    m2 = _extract_metric_col(part2) or (roles.get("sales") if m1 != roles.get("sales") else (roles.get("profit_margin") or roles.get("profit")))
+                    agg2 = "mean" if (m2 and re.search(r"\b(margin|ratio|rate|average|avg|mean|percentage|pct|discount|rating|price)\b", m2.lower())) or re.search(r"\b(average|avg|mean)\b", part2) else "sum"
 
-        # Q13: route the intent even when the named segment values are absent.
-        if re.search(r"\bcompare\b", q) and re.search(r"\baverage\s+profit\s+per\s+order\b", q):
-            seg_groups = re.findall(r"\b(consumer|corporate|home\s+office)\b", q, re.IGNORECASE)
-            return ("universal_business_query", {
-                "operation": "compare_segment_avg_order_profit",
-                "group_col": segment_col or "__missing_customer_segment_field__",
-                "order_col": order_col or "__missing_order_id_field__",
-                "profit_col": profit_col or "__missing_profit_field__",
-                "groups": seg_groups,
-            })
-
-        if re.search(r"\bcategories\b", q) and re.search(r"\babove[- ]average\s+profit\s+ratio\b", q) and re.search(r"\bbelow[- ]average\s+sales\b", q) and category_col and sales_col and ratio_col:
-            return ("universal_business_query", {"operation": "ratio_above_sales_below", "group_col": category_col, "value_col": sales_col, "ratio_col": ratio_col})
+                    if m1 and m2 and m1 in self.df.columns and m2 in self.df.columns:
+                        return ("universal_business_query", {
+                            "operation": "entities_above_below_avg_compare",
+                            "group_col": grp_col,
+                            "metric1": m1,
+                            "op1": op1,
+                            "agg1": agg1,
+                            "metric2": m2,
+                            "op2": op2,
+                            "agg2": agg2,
+                        })
+                else:
+                    if m1 and m1 in self.df.columns:
+                        return ("universal_business_query", {
+                            "operation": "entity_above_below_avg",
+                            "group_col": grp_col,
+                            "metric": m1,
+                            "value_col": m1,
+                            "op": op1,
+                            "agg": agg1,
+                        })
 
         if re.search(r"\bhighest\s+average\s+order\s+value\b", q) and re.search(r"\btop\s+10\s+countries\b", q) and country_col and sales_col and order_col:
             return ("universal_business_query", {"operation": "top10_sales_aov", "group_col": country_col, "order_col": order_col, "value_col": sales_col, "top_n": 10})
@@ -1771,11 +1951,12 @@ class DataAIAgent:
                 )
 
             if group_col and value_col and order_col:
+                is_lowest = bool(re.search(r"\b(lowest|bottom|least|worst|minimum|min)\b", q))
                 return ("get_aov_ranking", {
                     "group_col": group_col,
                     "order_col": order_col,
                     "value_col": value_col,
-                    "ascending": False,
+                    "ascending": is_lowest,
                 })
 
         # ── 00. COMPOUND / DUAL-METRIC QUERIES ──────────────────────────────
@@ -1814,6 +1995,23 @@ class DataAIAgent:
                         "ascending2": asc2,
                     })
             return None
+
+        # ── 0a1. ENTITY TARGET VALUE MATCHING ────────────────────────────────
+        # "Which category has the average discount 15.01?", "Which region has sales around 1M?"
+        target_amount = _parse_amount(q)
+        if target_amount is not None and re.search(r"\b(which|who|name|find|tell me)\b", q):
+            grp_col = _extract_target_group_col(q)
+            val_col = _extract_metric_col(q)
+            if grp_col and val_col and grp_col != val_col:
+                agg_type = "mean" if re.search(r"\b(average|avg|mean|ratio|margin|discount|rate|rating|price)\b", q) else "sum"
+                if not re.search(r"\b(highest|lowest|top|bottom|best|worst|more than|greater than|above|less than|below|under|over|at least)\b", q):
+                    return ("universal_business_query", {
+                        "operation": "entity_target_value_match",
+                        "group_col": grp_col,
+                        "value_col": val_col,
+                        "target": target_amount,
+                        "agg": agg_type,
+                    })
 
         # ── 0a. GROUPED ENTITY THRESHOLD QUERIES ─────────────────────────────
         # "Which countries have generated more than $5 million in sales?",
@@ -2716,14 +2914,14 @@ class DataAIAgent:
             fn_name, fn_args = match
             fn_res = self._execute_function(fn_name, fn_args)
             chart_json = None if fn_res.get("calculation_status") == "unavailable" else self._build_chart(fn_res, question)
-            return {
-                "answer": fn_res["answer"] + quota_notice,
-                "chart_recommended": chart_json is not None,
-                "chart": chart_json,
-                "_fn_name": fn_name,
-                "_fn_args": fn_args,
-                "_routed_locally": True,
-            }
+            return self._public_result_payload(
+                fn_res,
+                chart_json,
+                answer=fn_res["answer"] + quota_notice,
+                _fn_name=fn_name,
+                _fn_args=fn_args,
+                _routed_locally=True,
+            )
 
         # 2. Extract mentioned columns
         num_cols = roles["num"]
@@ -2734,7 +2932,8 @@ class DataAIAgent:
         val_col = None
         for col in num_cols:
             c_clean = col.lower().replace("_", " ").replace("-", " ")
-            if any(w in q for w in c_clean.split() if len(w) > 2):
+            col_words = [w for w in c_clean.split() if len(w) > 2 and w not in ["total", "sum", "avg", "average", "mean", "min", "max", "count", "num", "val", "item", "per"]]
+            if any(re.search(rf"\b{re.escape(w)}\b", q) for w in col_words):
                 val_col = col
                 break
         val_col = val_col or roles.get("sales") or (num_cols[0] if num_cols else None)
@@ -2742,7 +2941,8 @@ class DataAIAgent:
         grp_col = None
         for col in cat_cols:
             c_clean = col.lower().replace("_", " ").replace("-", " ")
-            if any(w in q for w in c_clean.split() if len(w) > 2):
+            col_words = [w for w in c_clean.split() if len(w) > 2 and w not in ["the", "all", "and", "for", "with", "type", "name", "code", "list"]]
+            if any(re.search(rf"\b{re.escape(w)}\b", q) for w in col_words):
                 grp_col = col
                 break
         grp_col = grp_col or roles.get("category") or roles.get("product") or (cat_cols[0] if cat_cols else None)
@@ -2754,59 +2954,60 @@ class DataAIAgent:
             if m1 and m2:
                 res = af.fn_dual_metric_ranking(self.df, grp_col, m1, "sum", False, m2, "mean", True)
                 chart_json = self._build_chart(res, question)
-                return {
-                    "answer": res["answer"] + quota_notice,
-                    "chart_recommended": bool(chart_json),
-                    "chart": chart_json,
-                    "_fn_name": "fn_dual_metric_ranking",
-                }
+                return self._public_result_payload(
+                    res,
+                    chart_json,
+                    answer=res["answer"] + quota_notice,
+                    _fn_name="fn_dual_metric_ranking",
+                )
 
         # 3. Check for specific intent keywords
         if any(kw in q for kw in ["trend", "time", "date", "month", "year", "over time", "daily", "monthly", "yearly"]) and (date_cols or roles.get("date_col")) and val_col:
             dc = roles.get("date_col") or date_cols[0]
             res = af.fn_get_time_series(self.df, dc, val_col, "ME")
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
         if any(kw in q for kw in ["correlat", "relation", "impact", "affect", "increase", "depend"]) and len(num_cols) >= 2:
             res = af.fn_get_correlation(self.df, num_cols[:5])
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
         if any(kw in q for kw in ["distribut", "spread", "count of", "frequency", "unique"]) and grp_col:
             res = af.fn_get_distribution(self.df, grp_col)
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
         if any(kw in q for kw in ["outlier", "anomaly", "extreme", "unusual"]) and val_col:
             res = af.fn_get_outliers(self.df, val_col)
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
         if any(kw in q for kw in ["top", "best", "highest", "most", "largest", "rank", "leader"]) and grp_col and val_col:
             res = af.fn_get_top_n(self.df, grp_col, val_col, 10, "sum", False)
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
         if any(kw in q for kw in ["bottom", "worst", "lowest", "least", "smallest"]) and grp_col and val_col:
             res = af.fn_get_top_n(self.df, grp_col, val_col, 10, "sum", True)
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
-        if any(kw in q for kw in ["total", "sum", "average", "avg", "mean", "min", "max", "overall", "what is"]) and val_col:
+        is_entity_query = bool(re.search(r"\b(which|who|what (?:product|category|customer|segment|region|country|city|state|shipping|department|market|brand|item)|name the|tell me the (?:product|category|customer|segment|region|country|city|state))\b", q))
+        if not is_entity_query and any(kw in q for kw in ["total", "sum", "average", "avg", "mean", "min", "max", "overall", "what is"]) and val_col:
             agg_type = "mean" if any(k in q for k in ["avg", "average", "mean"]) else ("max" if "max" in q else ("min" if "min" in q else "sum"))
             res = af.fn_get_aggregate(self.df, val_col, agg_type, val_col)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": False}
+            return self._public_result_payload(res, None, answer=res["answer"] + quota_notice)
 
         # 4. Default: If categorical and numeric columns exist, provide top category breakdown
         if grp_col and val_col:
             res = af.fn_get_top_n(self.df, grp_col, val_col, 10, "sum", False)
             chart_json = self._build_chart(res, question)
-            return {"answer": res["answer"] + quota_notice, "chart_recommended": bool(chart_json), "chart": chart_json}
+            return self._public_result_payload(res, chart_json, answer=res["answer"] + quota_notice)
 
         # 5. General statistical overview
         res = af.fn_get_data_overview(self.df)
-        return {"answer": res["answer"] + quota_notice, "chart_recommended": False}
+        return self._public_result_payload(res, None, answer=res["answer"] + quota_notice)
 
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -3013,14 +3214,13 @@ class DataAIAgent:
                 answer = fn_result["answer"]
                 chart_json = self._build_chart(fn_result, question)
             log_local_route(fn_name, fn_args, answer=answer, chart=chart_json is not None)
-            return {
-                "answer": answer,
-                "chart_recommended": chart_json is not None,
-                "chart": chart_json,
-                "_fn_name": fn_name,
-                "_fn_args": fn_args,
-                "_routed_locally": True,
-            }
+            return self._public_result_payload(
+                fn_result, chart_json,
+                answer=answer,
+                _fn_name=fn_name,
+                _fn_args=fn_args,
+                _routed_locally=True,
+            )
 
         # Only unmatched compound questions reach Pattern B.
         if self._is_compound_question(question) and self.has_genai:

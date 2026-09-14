@@ -198,16 +198,19 @@ def fn_get_top_n(
     last_val = float(result.iloc[-1][value_col])
     total = float(df[value_col].sum()) if agg == "sum" and pd.api.types.is_numeric_dtype(df[value_col]) else None
 
-    lines = []
-    if ascending:
-        lines.append(f"**{perf_label}{filter_label}:** **{top_name}** has the lowest {value_col} with **{_fmt(top_val)}**.")
-    elif total and total > 0:
-        pct = round(top_val / total * 100, 1)
-        lines.append(f"**Top Performer{filter_label}:** **{top_name}** leads with **{_fmt(top_val)}** {value_col} (**{pct}%** of total).")
+    rank_word = "lowest" if ascending else "highest"
+    clean_val_name = value_col.replace("_", " ")
+    if agg == "mean":
+        lead_line = f"{top_name} — {rank_word} average {clean_val_name}: {_fmt(top_val)}."
+    elif agg == "sum":
+        lead_line = f"{top_name} — {rank_word} {clean_val_name}: {_fmt(top_val)}."
     else:
-        lines.append(f"**Top Performer{filter_label}:** **{top_name}** ranks 1st with **{_fmt(top_val)}** ({agg} of {value_col}).")
+        lead_line = f"{top_name} — {rank_word} {agg} of {clean_val_name}: {_fmt(top_val)}."
 
-    if len(result) > 1:
+    if n == 1:
+        answer = lead_line
+    else:
+        lines = [lead_line]
         items_summary = "\n".join([
             f"{i+1}. **{str(r[group_col])}**: {_fmt(float(r[value_col]))}" + (f" ({round(float(r[value_col])/total*100, 1)}% of total)" if total and total > 0 else "")
             for i, (_, r) in enumerate(result.iterrows())
@@ -229,19 +232,24 @@ def fn_get_top_n(
                 f"\n**Performance Gap:** The difference between #{1} (**{top_name}**) "
                 f"and #{len(result)} (**{last_name}**) is **{_fmt(gap)}**."
             )
+        answer = "\n".join(lines)
 
-    answer = "\n".join(lines)
+    # Provide comparative chart dataset (up to 10 items) so visualizer always has valid X and Y
+    chart_df = (
+        df.groupby(group_col, as_index=False)[value_col]
+        .agg(agg)
+        .sort_values(value_col, ascending=bool(ascending))
+        .head(10 if n == 1 else n)
+    )
 
-    # Only render a chart when there is more than one bar to compare
-    chart_type = "bar" if len(result) > 1 else None
     return _result(
         answer,
         summary=result.to_string(index=False),
-        result_df=result if chart_type else None,
-        chart_type=chart_type,
-        x_col=group_col if chart_type else None,
-        y_col=value_col if chart_type else None,
-        chart_title=f"{direction} {len(result)} {group_col} by {agg.title()} {value_col}" if chart_type else None,
+        result_df=chart_df if not chart_df.empty else result,
+        chart_type="bar",
+        x_col=group_col,
+        y_col=value_col,
+        chart_title=f"{direction} {len(chart_df)} {group_col} by {agg.title()} {value_col}",
     )
 
 

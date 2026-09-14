@@ -395,13 +395,10 @@ def index():
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        if "dataset" not in request.files:
-            return jsonify({"error": "No file part in upload request."}), 400
-
-        file = request.files["dataset"]
+        file = request.files.get("dataset") or request.files.get("file")
 
         if not file or file.filename == "":
-            return jsonify({"error": "No file selected."}), 400
+            return jsonify({"error": "No file part or file selected in upload request."}), 400
 
         if not allowed_file(file.filename):
             return jsonify({
